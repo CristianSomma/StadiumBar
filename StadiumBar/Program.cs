@@ -1,10 +1,22 @@
-﻿namespace StadiumBar
+﻿using StadiumBar.Managers;
+using StadiumBar.Models;
+
+namespace StadiumBar
 {
     internal class Program
     {
-        static void Main(string[] args)
+        private static MainManager _manager;
+
+        static async Task Main(string[] args)
         {
-            
+            _manager = new MainManager();
+            _manager.Bar.EnteringBar += PrintMessage;
+            await _manager.Simulate();
+        }
+
+        static void PrintMessage(object? sender, EnteringBarEventArgs args)
+        {
+            Console.WriteLine(args.Message);
         }
     }
 }

@@ -15,7 +15,7 @@ namespace StadiumBar.Models
         public Fan(bool supportsHomeTeam)
         {
             SupportsHomeTeam = supportsHomeTeam;
-            _timeToSpendInside = _random.Next()
+            _timeToSpendInside = _random.Next(250, 1000);
         }
 
         public bool SupportsHomeTeam
@@ -27,9 +27,6 @@ namespace StadiumBar.Models
             }
         }
 
-        public int TimeToSpendInside
-        {
-            get => _time
-        }
+        public int TimeToSpendInside => _timeToSpendInside;
     }
 }
