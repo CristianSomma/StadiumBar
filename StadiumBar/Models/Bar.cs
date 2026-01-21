@@ -9,20 +9,29 @@ namespace StadiumBar.Models
 {
     public class Bar
     {
-        public event EventHandler<EnteringBarEventArgs> EnteringBar;
+        public event EventHandler<BarEventOccurredArgs> BarEventOccurred;
+        
+        // status del bar (aperto, in chiusura, chiuso)
+        private BarStatus _status;
+        // tifosi che sono all'interno del bar
+        private int _fansInside;
+
+        // oggetto per la gestione della lettura/scrittura di variabili condivise
+        private readonly object _stateLock;
 
         private bool? _areHomeFansInside;
         private int _maxCapacity;
-        private BarStatus _status;
         private readonly SemaphoreSlim _barCapacity;
 
         public Bar(Bartender bartender, int maxCapacity)
         {
-            bartender.ClosingBarOrdered += ChangeStatus;
             MaxCapacity = maxCapacity;
             _barCapacity = new SemaphoreSlim(MaxCapacity, MaxCapacity);
+            _fansInside = 0; // contatore dei fan nel bar, separato per evitare race conditions
+            _stateLock = new object();
         }
 
+        // Property per la capacità massima del bar
         public int MaxCapacity
         {
             get => _maxCapacity;
@@ -36,96 +45,128 @@ namespace StadiumBar.Models
             }
         }
 
+        // Metodo principale:
         public async Task Enter(Fan fan)
         {
+            // se il bar è in chiusura, allora...
             if (CannotEnterBecauseClosing(fan))
             {
+                // se non c'é nessuno nel bar allora chiude per pulizie
                 await ManageClosing();
-                return;
+                // il tifoso non può entrare
+                return; 
             }
 
+            // se c'é spazio nel bar, allora il tifoso entra
             await _barCapacity.WaitAsync();
 
             try
             {
-                if (!IsSameTeamInside(fan))
-                    return;
+                lock (_stateLock)
+                {
+                    // se il tifoso supporta una squadra diversa dai tifosi dentro il bar, esce
+                    if (!IsSameTeamInside(fan))
+                        return;
 
-                OnEnteringBar("The fan has entered the bar.");
+                    // incrementa il numero dei fan nel bar (entrato)
+                    _fansInside++;
+                    OnBarEventOccurred(BarEvent.FanEntered, "The fan has entered the bar.");
+                }
+
                 await Task.Delay(fan.TimeToSpendInside);
             }
             finally
             {
-                _barCapacity.Release();
-                OnEnteringBar("A fan has left the bar.");
-            }
-        }
+                lock (_stateLock)
+                {
+                    // decrementa il numero dei fan nel bar (uscito)
+                    _fansInside--;
+                    OnBarEventOccurred(BarEvent.FanLeft, "A fan has left the bar.");
+                }
 
-        public void ChangeStatus(object? sender, EventArgs e)
-        {
-            _status = _status switch
-            {
-                BarStatus.Open => BarStatus.Closed,
-                BarStatus.Closed => BarStatus.Open,
-                _ => throw new ArgumentOutOfRangeException(nameof(_status), 
-                "Bar current status is not implemented.")
-            };
+                _barCapacity.Release();
+            }
         }
 
         public void ChangeStatus()
         {
-            _status = _status switch
+            lock (_stateLock)
             {
-                BarStatus.Open => BarStatus.Closed,
-                BarStatus.Closed => BarStatus.Open,
-                _ => throw new ArgumentOutOfRangeException(nameof(_status), 
-                "Bar current status is not implemented.")
-            };
+                _status = _status switch
+                {
+                    BarStatus.Open => BarStatus.Closed,
+                    BarStatus.Closed => BarStatus.Open,
+                    _ => throw new ArgumentOutOfRangeException(nameof(_status),
+                    "Bar current status is not implemented.")
+                };
+            }
         }
 
         private async Task ManageClosing()
         {
-            if (_barCapacity.CurrentCount != MaxCapacity)
-                return;
+            bool isClose = false;
+            
+            // se non ci sono più tifosi dentro al bar, allora va in chiusura
+            lock (_stateLock)
+            {
+                if (_fansInside == 0)
+                {
+                    _status = BarStatus.Closed;
+                    isClose = true;
+                }
+            }
 
-            OnEnteringBar("The bar has closed");
-            await Task.Delay(3000);
-            ChangeStatus();
+            if (isClose)
+            {
+                OnBarEventOccurred(BarEvent.BarClosed, "The bar has closed");
+
+                await Task.Delay(Random.Shared.Next(3000, 7000));
+
+                // il bar diventa aperto
+                lock (_stateLock)
+                    _status = BarStatus.Open;
+            }
         }
 
         private bool CannotEnterBecauseClosing(Fan fan)
         {
-            if (_status == BarStatus.Open)
-                return false;
+            lock (_stateLock)
+            {
+                // se il bar è aperto, ritorna false (non in chiusura)
+                if (_status == BarStatus.Open)
+                    return false;
 
-            OnEnteringBar("The bar is closing, the fan cannot enter.");
-            return true;
+                // altrimenti il bar viene considerato come chiuso o in chiusura
+                OnBarEventOccurred(BarEvent.BarClosing, "The bar is closing, the fan cannot enter.");
+                return true;
+            }
         }
 
         private bool IsSameTeamInside(Fan fan)
         {
-            if (_areHomeFansInside is null
-                || _barCapacity.CurrentCount == MaxCapacity)
-            {
+            // se nessuno è dentro allora fan dentro supportano la squadra
+            // di quello in entrata
+            if (_areHomeFansInside is null || _fansInside == 0)
                 _areHomeFansInside = fan.SupportsHomeTeam;
-            }
 
-            if((_areHomeFansInside is bool areHomeInside) && 
+            // se invece i fan dentro supportano una squadra diversa da quello che cerca
+            // di entrare viene cacciato
+            if ((_areHomeFansInside is bool areHomeInside) &&
                 (areHomeInside != fan.SupportsHomeTeam))
             {
-                OnEnteringBar("The fan is trying to enter while opponent fans are inside.");
+                OnBarEventOccurred(BarEvent.EntryDenied, "The fan is trying to enter while opponent fans are inside.");
                 return false;
             }
 
-            return true;
+                return true;
         }
 
-        protected virtual void OnEnteringBar(string messageToSend)
+        protected virtual void OnBarEventOccurred(BarEvent eventType, string messageToSend)
         {
             if (messageToSend is null) 
                 messageToSend = "Unknown";
 
-            EnteringBar?.Invoke(this, new EnteringBarEventArgs(messageToSend));
+            BarEventOccurred?.Invoke(this, new BarEventOccurredArgs(eventType, messageToSend));
         }
     }
 
@@ -135,13 +176,15 @@ namespace StadiumBar.Models
         Closed = 1,
     }
 
-    public class EnteringBarEventArgs : EventArgs
+    public class BarEventOccurredArgs : EventArgs
     {
+        private BarEvent _eventType;
         private string _message;
 
-        public EnteringBarEventArgs(string message)
+        public BarEventOccurredArgs(BarEvent eventType, string message)
         {
             Message = message;
+            _eventType = eventType;
         }
 
         public string Message
@@ -154,5 +197,17 @@ namespace StadiumBar.Models
                 _message = value;
             }
         }
+
+        public BarEvent EventType => _eventType;
+    }
+
+    public enum BarEvent
+    {
+        FanEntered,
+        FanLeft,
+        EntryDenied,
+        BarClosing,
+        BarClosed,
+        BarOpened
     }
 }

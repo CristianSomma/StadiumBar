@@ -10,7 +10,6 @@ namespace StadiumBar.Models
     public class Bartender
     {
         public event EventHandler ClosingBarOrdered;
-        private static Random _random = new Random(Environment.TickCount);
         private int _closingProbability;
         
         public Bartender(int closingProbability)
@@ -26,7 +25,7 @@ namespace StadiumBar.Models
         {
             await Task.Delay(1500);
 
-            if (_random.Next(0, 100) < _closingProbability)
+            if (Random.Shared.Next(0, 100) < _closingProbability)
                 OnClosingBarOrdered();
         }
 

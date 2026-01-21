@@ -12,12 +12,14 @@ namespace StadiumBar.Managers
         private Bar _bar;
         private Bartender _bartender;
         private FansCreator _fansCreator;
+        private CancellationTokenSource _tokenSource;
 
         public MainManager()
         {
             _bartender = new Bartender(20);
             _bar = new Bar(_bartender, 10);
             _fansCreator = new FansCreator();
+            _tokenSource = new CancellationTokenSource();
         }
 
         public Bar Bar => _bar;

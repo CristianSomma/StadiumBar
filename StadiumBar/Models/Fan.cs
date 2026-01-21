@@ -8,14 +8,13 @@ namespace StadiumBar.Models
 {
     public class Fan
     {
-        private static Random _random = new Random(Environment.TickCount);
         private int _timeToSpendInside;
         private bool _supportsHomeTeam;
 
         public Fan(bool supportsHomeTeam)
         {
             SupportsHomeTeam = supportsHomeTeam;
-            _timeToSpendInside = _random.Next(250, 1000);
+            _timeToSpendInside = Random.Shared.Next(250, 1000);
         }
 
         public bool SupportsHomeTeam
