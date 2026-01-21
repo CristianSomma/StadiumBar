@@ -72,6 +72,17 @@ namespace StadiumBar.Models
             };
         }
 
+        public void ChangeStatus()
+        {
+            _status = _status switch
+            {
+                BarStatus.Open => BarStatus.Closed,
+                BarStatus.Closed => BarStatus.Open,
+                _ => throw new ArgumentOutOfRangeException(nameof(_status), 
+                "Bar current status is not implemented.")
+            };
+        }
+
         private async Task ManageClosing()
         {
             if (_barCapacity.CurrentCount != MaxCapacity)
@@ -79,6 +90,7 @@ namespace StadiumBar.Models
 
             OnEnteringBar("The bar has closed");
             await Task.Delay(3000);
+            ChangeStatus();
         }
 
         private bool CannotEnterBecauseClosing(Fan fan)
