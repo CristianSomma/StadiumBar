@@ -9,15 +9,12 @@ namespace StadiumBar.Managers
 {
     public class FansCreator
     {
-        private static Random _random = new Random(Environment.TickCount);
-
         public FansCreator() { }
 
         public async Task<Fan> GenerateFan()
         {
-            await Task.Delay(_random.Next(350, 3000)).ConfigureAwait(false);
-
-            Fan newFan = new Fan(_random.NextDouble() > 0.5f);
+            bool isHomeTeam = Random.Shared.Next(2) == 0;
+            Fan newFan = new Fan(isHomeTeam);
 
             return newFan;
         }

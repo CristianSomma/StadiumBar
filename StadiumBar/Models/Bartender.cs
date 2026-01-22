@@ -9,7 +9,7 @@ namespace StadiumBar.Models
 {
     public class Bartender
     {
-        public event EventHandler ClosingBarOrdered;
+        public Func<Task> ClosingBarOrdered;
         private int _closingProbability;
         
         public Bartender(int closingProbability)
@@ -21,17 +21,21 @@ namespace StadiumBar.Models
             _closingProbability = closingProbability;
         }
 
-        public async Task TryCloseBar()
+        public async Task CloseBar(CancellationToken token)
         {
-            await Task.Delay(1500).ConfigureAwait(false);
+            while (!token.IsCancellationRequested)
+            {
+                await Task.Delay(1500).ConfigureAwait(false);
 
-            if (Random.Shared.Next(0, 100) < _closingProbability)
-                OnClosingBarOrdered();
+                if (Random.Shared.Next(0, 100) < _closingProbability)
+                    await OnClosingBarOrdered();
+            }
         }
 
-        protected virtual void OnClosingBarOrdered()
+        protected virtual async Task OnClosingBarOrdered()
         {
-            ClosingBarOrdered?.Invoke(this, EventArgs.Empty);
+            if(ClosingBarOrdered != null)
+                await ClosingBarOrdered.Invoke();
         }
     }
 }

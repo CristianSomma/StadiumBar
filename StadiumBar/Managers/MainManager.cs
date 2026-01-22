@@ -1,8 +1,7 @@
 ﻿using StadiumBar.Models;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StadiumBar.Managers
@@ -17,7 +16,7 @@ namespace StadiumBar.Managers
         public MainManager()
         {
             _bartender = new Bartender(20);
-            _bar = new Bar(_bartender, 10);
+            _bar = new Bar(_bartender, 3);
             _fansCreator = new FansCreator();
             _tokenSource = new CancellationTokenSource();
         }
@@ -26,22 +25,21 @@ namespace StadiumBar.Managers
 
         public async Task Simulate()
         {
-            _ = Task.Run(async () =>
-            {
-                await _bartender.TryCloseBar().ConfigureAwait(false);
-            });
-            
-            while(true)
-            {
-                Fan fan = await _fansCreator.GenerateFan().ConfigureAwait(false);
-                
-                _ = Task.Run(async () =>
-                {
-                    await _bar.Enter(fan).ConfigureAwait(false);
-                });
+            _ = _bartender.CloseBar(_tokenSource.Token);
 
-                await Task.Delay(200).ConfigureAwait(false);
+            while (!_tokenSource.Token.IsCancellationRequested)
+            {
+                Fan fan = await _fansCreator.GenerateFan();
+
+                _ = Task.Run(async () => await _bar.Enter(fan));
+
+                await Task.Delay(Random.Shared.Next(200, 700));
             }
+        }
+
+        public void Stop()
+        {
+            _tokenSource.Cancel();
         }
     }
 }

@@ -10,11 +10,11 @@ namespace StadiumBar
         static async Task Main(string[] args)
         {
             _manager = new MainManager();
-            _manager.Bar.EnteringBar += PrintMessage;
+            _manager.Bar.BarEventOccurred += PrintMessage;
             await _manager.Simulate().ConfigureAwait(false);
         }
 
-        static void PrintMessage(object? sender, EnteringBarEventArgs args)
+        static void PrintMessage(object? sender, BarEventOccurredArgs args)
         {
             Console.WriteLine(args.Message);
         }
