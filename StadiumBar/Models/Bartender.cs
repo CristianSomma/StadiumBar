@@ -23,7 +23,7 @@ namespace StadiumBar.Models
 
         public async Task TryCloseBar()
         {
-            await Task.Delay(1500);
+            await Task.Delay(1500).ConfigureAwait(false);
 
             if (Random.Shared.Next(0, 100) < _closingProbability)
                 OnClosingBarOrdered();

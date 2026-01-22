@@ -15,7 +15,7 @@ namespace StadiumBar.Managers
 
         public async Task<Fan> GenerateFan()
         {
-            await Task.Delay(_random.Next(350, 3000));
+            await Task.Delay(_random.Next(350, 3000)).ConfigureAwait(false);
 
             Fan newFan = new Fan(_random.NextDouble() > 0.5f);
 

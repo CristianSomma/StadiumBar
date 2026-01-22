@@ -28,19 +28,19 @@ namespace StadiumBar.Managers
         {
             _ = Task.Run(async () =>
             {
-                await _bartender.TryCloseBar();
+                await _bartender.TryCloseBar().ConfigureAwait(false);
             });
             
             while(true)
             {
-                Fan fan = await _fansCreator.GenerateFan();
+                Fan fan = await _fansCreator.GenerateFan().ConfigureAwait(false);
                 
                 _ = Task.Run(async () =>
                 {
-                    await _bar.Enter(fan);
+                    await _bar.Enter(fan).ConfigureAwait(false);
                 });
 
-                await Task.Delay(200);
+                await Task.Delay(200).ConfigureAwait(false);
             }
         }
     }

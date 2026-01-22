@@ -48,17 +48,19 @@ namespace StadiumBar.Models
         // Metodo principale:
         public async Task Enter(Fan fan)
         {
+            bool hasEntered = true;
+            
             // se il bar è in chiusura, allora...
             if (CannotEnterBecauseClosing(fan))
             {
                 // se non c'é nessuno nel bar allora chiude per pulizie
-                await ManageClosing();
+                await ManageClosing().ConfigureAwait(false);
                 // il tifoso non può entrare
                 return; 
             }
 
             // se c'é spazio nel bar, allora il tifoso entra
-            await _barCapacity.WaitAsync();
+            await _barCapacity.WaitAsync().ConfigureAwait(false);
 
             try
             {
@@ -66,24 +68,38 @@ namespace StadiumBar.Models
                 {
                     // se il tifoso supporta una squadra diversa dai tifosi dentro il bar, esce
                     if (!IsSameTeamInside(fan))
+                    {
+                        hasEntered = false;
                         return;
+                    }
 
                     // incrementa il numero dei fan nel bar (entrato)
                     _fansInside++;
                     OnBarEventOccurred(BarEvent.FanEntered, "The fan has entered the bar.");
                 }
 
-                await Task.Delay(fan.TimeToSpendInside);
+                await Task.Delay(fan.TimeToSpendInside)
+                    .ConfigureAwait(false);
             }
             finally
             {
+                // se è entrato nel bar, allora lo toglie dal contatore dei presenti nel bar
+                // se l'accesso non gli è stato consentito non è entrato e quindi non viene decrementato
                 lock (_stateLock)
                 {
-                    // decrementa il numero dei fan nel bar (uscito)
-                    _fansInside--;
-                    OnBarEventOccurred(BarEvent.FanLeft, "A fan has left the bar.");
+                    if (hasEntered)
+                    {
+                        // decrementa il numero dei fan nel bar (uscito)
+                        _fansInside--;
+                        OnBarEventOccurred(BarEvent.FanLeft, "A fan has left the bar.");
+                    }
+
+                    // se non ci sono più fan dentro, reset a null
+                    if (_fansInside == 0)
+                        _areHomeFansInside = null;
                 }
 
+                // rilascio indipendente dall'entrata
                 _barCapacity.Release();
             }
         }
@@ -120,7 +136,8 @@ namespace StadiumBar.Models
             {
                 OnBarEventOccurred(BarEvent.BarClosed, "The bar has closed");
 
-                await Task.Delay(Random.Shared.Next(3000, 7000));
+                await Task.Delay(Random.Shared.Next(3000, 7000))
+                    .ConfigureAwait(false);
 
                 // il bar diventa aperto
                 lock (_stateLock)
