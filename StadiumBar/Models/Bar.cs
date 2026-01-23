@@ -1,4 +1,5 @@
-﻿using System;
+﻿using StadiumBar.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,8 +11,9 @@ namespace StadiumBar.Models
     {
         public event EventHandler<BarEventOccurredArgs> BarEventOccurred;
 
-        private readonly SemaphoreSlim _capacity;
-        private readonly object _stateLock;
+        // Per sincronizzazione:
+        private readonly SemaphoreSlim _capacity;   // gestione dell'entrata
+        private readonly object _stateLock; // gestione variabili comuni
 
         private BarStatus _status;
         private bool? _areHomeFansInside;
@@ -48,6 +50,10 @@ namespace StadiumBar.Models
             {
                 lock (_stateLock)
                 {
+                    // Entrata rifiutata se:
+                    // -> Bar chiuso
+                    // -> Tifosi nel bar tifano una squadra diversa
+
                     if (IsClosedForCleaningLocked())
                     {
                         isEntryDenied = true;
@@ -62,15 +68,21 @@ namespace StadiumBar.Models
                         return;
                     }
 
+                    // Altrimenti l'entrata effettiva è confermata
                     _fansInside++;
                     OnBarEventOccurred(BarEvent.FanEntered, $"Fan entered ({_fansInside}/{_maxCapacity})");
                 }
 
+                // Simulazione del tempo speso nel bar:
                 await Task.Delay(fan.TimeToSpendInside)
                     .ConfigureAwait(false);
             }
             finally
             {
+                // Se si è entrati nel bar effettivamente:
+                // -> Si decrementa il numero di tifosi nel bar
+                // Altrimenti si incrementa solamente il contatore del semaforo
+                
                 lock (_stateLock)
                 {
                     if (!isEntryDenied)
@@ -89,6 +101,10 @@ namespace StadiumBar.Models
 
         public async Task CloseForCleaning(int cleaningTime)
         {
+            // Se viene richiesta la chiusura del bar:
+            // -> Aspetta che il numero di fan nel bar è zero per chiudere
+            // -> Riapre il bar dopo il tempo di pulizia
+
             lock (_stateLock)
             {
                 _status = BarStatus.Closed;
@@ -144,12 +160,6 @@ namespace StadiumBar.Models
         }
     }
 
-    public enum BarStatus
-    {
-        Open = 0,
-        Closed = 1,
-    }
-
     public class BarEventOccurredArgs : EventArgs
     {
         private BarEvent _eventType;
@@ -173,15 +183,5 @@ namespace StadiumBar.Models
         }
 
         public BarEvent EventType => _eventType;
-    }
-
-    public enum BarEvent
-    {
-        FanEntered,
-        FanLeft,
-        EntryDenied,
-        BarClosing,
-        BarClosed,
-        BarOpened
     }
 }
